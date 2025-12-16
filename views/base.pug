@@ -1,0 +1,24 @@
+doctype html
+html(lang='en')
+    head
+        block head
+            meta(charset='UTF-8')
+            meta(name='viewport', content='width=device-width, initial-scale=1.0')
+            
+            title Natours | #{title}
+            link(rel="shortcut icon" href='/img/favicon.png')
+            link(rel='stylesheet' href='/css/style.css')
+            link( href="https://fonts.googleapis.com/css?family=Lato:300,300i,700"
+            rel="stylesheet")
+    body 
+        // Header
+        include _header
+
+        // Comtent
+        block content 
+            h1 This is the placeholder heading 
+
+        // Footer
+        include _footer
+
+        script(defer src='/js/bundle.js')
