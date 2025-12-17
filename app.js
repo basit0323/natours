@@ -8,6 +8,7 @@ const hpp = require('hpp');
 const xss = require('xss');
 const mongoSanitize = require('express-mongo-sanitize');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 
 const AppError = require('./utils/appErrors');
 const globalErrorHandler = require('./controllers/errorHandler');
@@ -106,6 +107,8 @@ app.use((req, res, next) => {
   req.requestTime = new Date().toISOString();
   next();
 });
+
+app.use(compression);
 
 // 3️⃣ ROUTES
 app.use('/', viewRouter);
