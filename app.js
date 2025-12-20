@@ -115,7 +115,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(compression);
+app.use(compression());
 
 // 3️⃣ ROUTES
 app.use('/', viewRouter);
