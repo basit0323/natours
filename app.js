@@ -9,6 +9,7 @@ const xss = require('xss');
 const mongoSanitize = require('express-mongo-sanitize');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
+const cors = require('cors');
 
 const AppError = require('./utils/appErrors');
 const globalErrorHandler = require('./controllers/errorHandler');
@@ -20,8 +21,14 @@ const viewRouter = require('./routes/viewRoutes');
 // Starting app here
 const app = express();
 
+app.enable('trust proxy');
+
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
+
+//enable cors
+app.use(cors());
+app.options(/.*/, cors());
 
 // Set security HTTP headers
 app.use(helmet());

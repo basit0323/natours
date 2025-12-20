@@ -12,7 +12,7 @@ const signToken = (id) => {
   });
 };
 
-const createSendToken = (user, statusCode, res) => {
+const createSendToken = (user, statusCode, req, res) => {
   const token = signToken(user._id);
 
   const cookiesOptions = {
@@ -20,9 +20,8 @@ const createSendToken = (user, statusCode, res) => {
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
+    secure: req.secure || req.headers('x-forwarded-proto') === 'https',
   };
-
-  if (process.env.NODE_ENV === 'production') cookiesOptions.secure = true;
 
   res.cookie('jwt', token, cookiesOptions);
 
@@ -51,7 +50,7 @@ exports.signup = catchAsync(async (req, res) => {
 
   await new Email(newUser, url).sendWelcome();
 
-  createSendToken(newUser, 201, res);
+  createSendToken(newUser, 201, req, res);
 });
 
 exports.login = catchAsync(async (req, res, next) => {
@@ -67,7 +66,7 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError('user email or password is incorrect', 401));
   }
 
-  createSendToken(user, 200, res);
+  createSendToken(user, 200, req, res);
 });
 
 exports.logout = (req, res) => {
