@@ -6,6 +6,8 @@ const bookingConroller = require('../controllers/bookingControllers');
 
 const router = express.Router();
 
+router.use(viewController.alert);
+
 router.get('/', authConroller.isLoggedIn, viewController.getOverview);
 router.get('/tour/:slug', authConroller.isLoggedIn, viewController.getTour);
 router.get('/login', authConroller.isLoggedIn, viewController.login);
