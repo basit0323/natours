@@ -1,4 +1,3 @@
-// app.js
 const express = require('express');
 const path = require('path');
 const morgan = require('morgan');
@@ -22,41 +21,28 @@ const bookingController = require('./controllers/bookingControllers');
 
 const app = express();
 
-/* -------------------------------------------------- */
-/* 🔥 STRIPE WEBHOOK — MUST BE FIRST 🔥 */
-/* -------------------------------------------------- */
 app.post(
   '/webhook-checkout',
   express.raw({ type: 'application/json' }),
   bookingController.webhookCheckout
 );
 
-/* -------------------------------------------------- */
-/* GLOBAL CONFIG */
-/* -------------------------------------------------- */
 app.set('trust proxy', 1);
 
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
 
-/* -------------------------------------------------- */
-/* SECURITY & UTILITIES */
-/* -------------------------------------------------- */
 app.use(cors());
-app.options('*', cors());
+app.options(/.*/, cors());
 
-app.use(
-  helmet({
-    contentSecurityPolicy: false, // Stripe-safe
-  })
-);
+app.use(helmet());
 
 // Development logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Rate limiting (API ONLY)
+// Limit requests from same API
 const limiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 100,
@@ -66,17 +52,9 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-/* -------------------------------------------------- */
-/* BODY PARSERS (AFTER WEBHOOK) */
-/* -------------------------------------------------- */
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
-/* -------------------------------------------------- */
-/* DATA SANITIZATION */
-/* -------------------------------------------------- */
-app.use(mongoSanitize());
 
 app.use(
   hpp({
@@ -91,7 +69,8 @@ app.use(
   })
 );
 
-// Manual XSS sanitization
+app.use(express.static(`${__dirname}/public`));
+
 app.use((req, res, next) => {
   if (req.body) {
     for (let key in req.body) {
@@ -100,28 +79,48 @@ app.use((req, res, next) => {
       }
     }
   }
+
+  req.safeQuery = {};
+  if (req.query) {
+    for (let key in req.query) {
+      if (typeof req.query[key] === 'string') {
+        req.safeQuery[key] = xss(req.query[key]);
+      } else {
+        req.safeQuery[key] = req.query[key];
+      }
+    }
+  }
+
+  req.safeParams = {};
+  if (req.params) {
+    for (let key in req.params) {
+      if (typeof req.params[key] === 'string') {
+        req.safeParams[key] = xss(req.params[key]);
+      } else {
+        req.safeParams[key] = req.params[key];
+      }
+    }
+  }
+
+  req.safeBody = mongoSanitize.sanitize(req.body);
+
   next();
 });
 
-/* -------------------------------------------------- */
-/* STATIC & PERFORMANCE */
-/* -------------------------------------------------- */
-app.use(express.static(`${__dirname}/public`));
+app.use((req, res, next) => {
+  req.requestTime = new Date().toISOString();
+  next();
+});
+
 app.use(compression());
 
-/* -------------------------------------------------- */
-/* ROUTES */
-/* -------------------------------------------------- */
 app.use('/', viewRouter);
 app.use('/api/v1/tours', tourRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reviews', reviewRouter);
 app.use('/api/v1/bookings', bookingRouter);
 
-/* -------------------------------------------------- */
-/* ERROR HANDLING */
-/* -------------------------------------------------- */
-app.all('*', (req, res, next) => {
+app.all(/.*/, (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
