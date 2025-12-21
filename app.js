@@ -19,48 +19,65 @@ const reviewRouter = require('./routes/reviewRoutes');
 const bookingRouter = require('./routes/bookingRoutes');
 const viewRouter = require('./routes/viewRoutes');
 const bookingController = require('./controllers/bookingControllers');
-// Starting app here
+
 const app = express();
 
-app.set('trust proxy', 1);
-
-app.set('view engine', 'pug');
-app.set('views', path.join(__dirname, 'views'));
-
-//enable cors
-app.use(cors());
-app.options(/.*/, cors());
-
-// Set security HTTP headers
-app.use(helmet());
-
-// Development logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-// Limit requests from same API
-const limiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  trustProxy: true, // ✅ REQUIRED
-});
-app.use('/api', limiter);
-
+/* -------------------------------------------------- */
+/* 🔥 STRIPE WEBHOOK — MUST BE FIRST 🔥 */
+/* -------------------------------------------------- */
 app.post(
   '/webhook-checkout',
   express.raw({ type: 'application/json' }),
   bookingController.webhookCheckout
 );
 
-// Body parser, reading data from body into req.body
+/* -------------------------------------------------- */
+/* GLOBAL CONFIG */
+/* -------------------------------------------------- */
+app.set('trust proxy', 1);
+
+app.set('view engine', 'pug');
+app.set('views', path.join(__dirname, 'views'));
+
+/* -------------------------------------------------- */
+/* SECURITY & UTILITIES */
+/* -------------------------------------------------- */
+app.use(cors());
+app.options('*', cors());
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Stripe-safe
+  })
+);
+
+// Development logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
+
+// Rate limiting (API ONLY)
+const limiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  trustProxy: true,
+});
+app.use('/api', limiter);
+
+/* -------------------------------------------------- */
+/* BODY PARSERS (AFTER WEBHOOK) */
+/* -------------------------------------------------- */
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Prevent parameter pollution
+/* -------------------------------------------------- */
+/* DATA SANITIZATION */
+/* -------------------------------------------------- */
+app.use(mongoSanitize());
+
 app.use(
   hpp({
     whitelist: [
@@ -74,12 +91,8 @@ app.use(
   })
 );
 
-// Serving static files
-app.use(express.static(`${__dirname}/public`));
-
-// 2️⃣ MANUAL SANITIZATION MIDDLEWARE
+// Manual XSS sanitization
 app.use((req, res, next) => {
-  // Sanitize req.body
   if (req.body) {
     for (let key in req.body) {
       if (typeof req.body[key] === 'string') {
@@ -87,58 +100,31 @@ app.use((req, res, next) => {
       }
     }
   }
-
-  // Sanitize req.query
-  req.safeQuery = {};
-  if (req.query) {
-    for (let key in req.query) {
-      if (typeof req.query[key] === 'string') {
-        req.safeQuery[key] = xss(req.query[key]);
-      } else {
-        req.safeQuery[key] = req.query[key];
-      }
-    }
-  }
-
-  // Sanitize req.params
-  req.safeParams = {};
-  if (req.params) {
-    for (let key in req.params) {
-      if (typeof req.params[key] === 'string') {
-        req.safeParams[key] = xss(req.params[key]);
-      } else {
-        req.safeParams[key] = req.params[key];
-      }
-    }
-  }
-
-  // Optional: Manual NoSQL sanitization
-  req.safeBody = mongoSanitize.sanitize(req.body);
-
   next();
 });
 
-// Test middleware for request time
-app.use((req, res, next) => {
-  req.requestTime = new Date().toISOString();
-  next();
-});
-
+/* -------------------------------------------------- */
+/* STATIC & PERFORMANCE */
+/* -------------------------------------------------- */
+app.use(express.static(`${__dirname}/public`));
 app.use(compression());
 
-// 3️⃣ ROUTES
+/* -------------------------------------------------- */
+/* ROUTES */
+/* -------------------------------------------------- */
 app.use('/', viewRouter);
 app.use('/api/v1/tours', tourRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reviews', reviewRouter);
 app.use('/api/v1/bookings', bookingRouter);
 
-// Handle unhandled routes
-app.all(/.*/, (req, res, next) => {
+/* -------------------------------------------------- */
+/* ERROR HANDLING */
+/* -------------------------------------------------- */
+app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
-// 4️⃣ GLOBAL ERROR HANDLER
 app.use(globalErrorHandler);
 
 module.exports = app;
