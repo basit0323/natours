@@ -22,7 +22,7 @@ const bookingController = require('./controllers/bookingControllers');
 // Starting app here
 const app = express();
 
-app.enable('trust proxy');
+app.set('trust proxy', 1);
 
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
@@ -41,9 +41,11 @@ if (process.env.NODE_ENV === 'development') {
 
 // Limit requests from same API
 const limiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
   max: 100,
-  windowMs: 60 * 60 * 1000, // 1 hour
-  message: 'Too many requests from this IP, please try again in an hour!',
+  standardHeaders: true,
+  legacyHeaders: false,
+  trustProxy: true, // ✅ REQUIRED
 });
 app.use('/api', limiter);
 
