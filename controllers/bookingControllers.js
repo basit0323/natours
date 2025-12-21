@@ -68,13 +68,13 @@ exports.webhookCheckout = (req, res, next) => {
   console.log('I am in the step 1');
 
   try {
-    event = stripe.event.constructEvent(
+    event = stripe.webhooks.constructEvent(
       req.body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    res.status(400).send(`webhook error ${err.message}`);
+    return res.status(400).send(`webhook error ${err.message}`);
   }
 
   console.log('I am in the step 2');
